@@ -1,2 +1,200 @@
 Kaggle競賽-鐵達尼號生存預測(Top 3%)
 https://medium.com/@yulongtsai/https-medium-com-yulongtsai-titanic-top3-8e64741cc11f
+
+
+from sklearn import preprocessing
+from sklearn.model_selection import GridSearchCV
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+%matplotlib inline 
+train = pd.read_csv('train.csv')
+test = pd.read_csv('test.csv')
+submit = pd.read_csv('gender_submission.csv')
+train.info() # 檢查有無空值
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 891 entries, 0 to 890
+Data columns (total 12 columns):
+PassengerId    891 non-null int64
+Survived       891 non-null int64
+Pclass         891 non-null int64
+Name           891 non-null object
+Sex            891 non-null object
+Age            714 non-null float64
+SibSp          891 non-null int64
+Parch          891 non-null int64
+Ticket         891 non-null object
+Fare           891 non-null float64
+Cabin          204 non-null object
+Embarked       889 non-null object
+dtypes: float64(2), int64(5), object(5)
+memory usage: 83.6+ KB
+test.info()
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 418 entries, 0 to 417
+Data columns (total 11 columns):
+PassengerId    418 non-null int64
+Pclass         418 non-null int64
+Name           418 non-null object
+Sex            418 non-null object
+Age            332 non-null float64
+SibSp          418 non-null int64
+Parch          418 non-null int64
+Ticket         418 non-null object
+Fare           417 non-null float64
+Cabin          91 non-null object
+Embarked       418 non-null object
+dtypes: float64(2), int64(4), object(5)
+memory usage: 36.0+ KB
+train.describe() # 看數據分布(max,min,mean,count)
+PassengerId	Survived	Pclass	Age	SibSp	Parch	Fare
+count	891.000000	891.000000	891.000000	714.000000	891.000000	891.000000	891.000000
+mean	446.000000	0.383838	2.308642	29.699118	0.523008	0.381594	32.204208
+std	257.353842	0.486592	0.836071	14.526497	1.102743	0.806057	49.693429
+min	1.000000	0.000000	1.000000	0.420000	0.000000	0.000000	0.000000
+25%	223.500000	0.000000	2.000000	20.125000	0.000000	0.000000	7.910400
+50%	446.000000	0.000000	3.000000	28.000000	0.000000	0.000000	14.454200
+75%	668.500000	1.000000	3.000000	38.000000	1.000000	0.000000	31.000000
+max	891.000000	1.000000	3.000000	80.000000	8.000000	6.000000	512.329200
+test.describe()
+PassengerId	Pclass	Age	SibSp	Parch	Fare
+count	418.000000	418.000000	332.000000	418.000000	418.000000	417.000000
+mean	1100.500000	2.265550	30.272590	0.447368	0.392344	35.627188
+std	120.810458	0.841838	14.181209	0.896760	0.981429	55.907576
+min	892.000000	1.000000	0.170000	0.000000	0.000000	0.000000
+25%	996.250000	1.000000	21.000000	0.000000	0.000000	7.895800
+50%	1100.500000	3.000000	27.000000	0.000000	0.000000	14.454200
+75%	1204.750000	3.000000	39.000000	1.000000	0.000000	31.500000
+max	1309.000000	3.000000	76.000000	8.000000	9.000000	512.329200
+# Combine Train and Test Data
+data = train.append(test)
+data
+C:\Users\WHLINZO\AppData\Local\Continuum\anaconda3\lib\site-packages\pandas\core\frame.py:6692: FutureWarning: Sorting because non-concatenation axis is not aligned. A future version
+of pandas will change to not sort by default.
+
+To accept the future behavior, pass 'sort=False'.
+
+To retain the current behavior and silence the warning, pass 'sort=True'.
+
+  sort=sort)
+Age	Cabin	Embarked	Fare	Name	Parch	PassengerId	Pclass	Sex	SibSp	Survived	Ticket
+0	22.0	NaN	S	7.2500	Braund, Mr. Owen Harris	0	1	3	male	1	0.0	A/5 21171
+1	38.0	C85	C	71.2833	Cumings, Mrs. John Bradley (Florence Briggs Th...	0	2	1	female	1	1.0	PC 17599
+2	26.0	NaN	S	7.9250	Heikkinen, Miss. Laina	0	3	3	female	0	1.0	STON/O2. 3101282
+3	35.0	C123	S	53.1000	Futrelle, Mrs. Jacques Heath (Lily May Peel)	0	4	1	female	1	1.0	113803
+4	35.0	NaN	S	8.0500	Allen, Mr. William Henry	0	5	3	male	0	0.0	373450
+5	NaN	NaN	Q	8.4583	Moran, Mr. James	0	6	3	male	0	0.0	330877
+6	54.0	E46	S	51.8625	McCarthy, Mr. Timothy J	0	7	1	male	0	0.0	17463
+7	2.0	NaN	S	21.0750	Palsson, Master. Gosta Leonard	1	8	3	male	3	0.0	349909
+8	27.0	NaN	S	11.1333	Johnson, Mrs. Oscar W (Elisabeth Vilhelmina Berg)	2	9	3	female	0	1.0	347742
+9	14.0	NaN	C	30.0708	Nasser, Mrs. Nicholas (Adele Achem)	0	10	2	female	1	1.0	237736
+10	4.0	G6	S	16.7000	Sandstrom, Miss. Marguerite Rut	1	11	3	female	1	1.0	PP 9549
+11	58.0	C103	S	26.5500	Bonnell, Miss. Elizabeth	0	12	1	female	0	1.0	113783
+12	20.0	NaN	S	8.0500	Saundercock, Mr. William Henry	0	13	3	male	0	0.0	A/5. 2151
+13	39.0	NaN	S	31.2750	Andersson, Mr. Anders Johan	5	14	3	male	1	0.0	347082
+14	14.0	NaN	S	7.8542	Vestrom, Miss. Hulda Amanda Adolfina	0	15	3	female	0	0.0	350406
+15	55.0	NaN	S	16.0000	Hewlett, Mrs. (Mary D Kingcome)	0	16	2	female	0	1.0	248706
+16	2.0	NaN	Q	29.1250	Rice, Master. Eugene	1	17	3	male	4	0.0	382652
+17	NaN	NaN	S	13.0000	Williams, Mr. Charles Eugene	0	18	2	male	0	1.0	244373
+18	31.0	NaN	S	18.0000	Vander Planke, Mrs. Julius (Emelia Maria Vande...	0	19	3	female	1	0.0	345763
+19	NaN	NaN	C	7.2250	Masselmani, Mrs. Fatima	0	20	3	female	0	1.0	2649
+20	35.0	NaN	S	26.0000	Fynney, Mr. Joseph J	0	21	2	male	0	0.0	239865
+21	34.0	D56	S	13.0000	Beesley, Mr. Lawrence	0	22	2	male	0	1.0	248698
+22	15.0	NaN	Q	8.0292	McGowan, Miss. Anna "Annie"	0	23	3	female	0	1.0	330923
+23	28.0	A6	S	35.5000	Sloper, Mr. William Thompson	0	24	1	male	0	1.0	113788
+24	8.0	NaN	S	21.0750	Palsson, Miss. Torborg Danira	1	25	3	female	3	0.0	349909
+25	38.0	NaN	S	31.3875	Asplund, Mrs. Carl Oscar (Selma Augusta Emilia...	5	26	3	female	1	1.0	347077
+26	NaN	NaN	C	7.2250	Emir, Mr. Farred Chehab	0	27	3	male	0	0.0	2631
+27	19.0	C23 C25 C27	S	263.0000	Fortune, Mr. Charles Alexander	2	28	1	male	3	0.0	19950
+28	NaN	NaN	Q	7.8792	O'Dwyer, Miss. Ellen "Nellie"	0	29	3	female	0	1.0	330959
+29	NaN	NaN	S	7.8958	Todoroff, Mr. Lalio	0	30	3	male	0	0.0	349216
+...	...	...	...	...	...	...	...	...	...	...	...	...
+388	21.0	NaN	Q	7.7500	Canavan, Mr. Patrick	0	1280	3	male	0	NaN	364858
+389	6.0	NaN	S	21.0750	Palsson, Master. Paul Folke	1	1281	3	male	3	NaN	349909
+390	23.0	B24	S	93.5000	Payne, Mr. Vivian Ponsonby	0	1282	1	male	0	NaN	12749
+391	51.0	D28	S	39.4000	Lines, Mrs. Ernest H (Elizabeth Lindsey James)	1	1283	1	female	0	NaN	PC 17592
+392	13.0	NaN	S	20.2500	Abbott, Master. Eugene Joseph	2	1284	3	male	0	NaN	C.A. 2673
+393	47.0	NaN	S	10.5000	Gilbert, Mr. William	0	1285	2	male	0	NaN	C.A. 30769
+394	29.0	NaN	S	22.0250	Kink-Heilmann, Mr. Anton	1	1286	3	male	3	NaN	315153
+395	18.0	C31	S	60.0000	Smith, Mrs. Lucien Philip (Mary Eloise Hughes)	0	1287	1	female	1	NaN	13695
+396	24.0	NaN	Q	7.2500	Colbert, Mr. Patrick	0	1288	3	male	0	NaN	371109
+397	48.0	B41	C	79.2000	Frolicher-Stehli, Mrs. Maxmillian (Margaretha ...	1	1289	1	female	1	NaN	13567
+398	22.0	NaN	S	7.7750	Larsson-Rondberg, Mr. Edvard A	0	1290	3	male	0	NaN	347065
+399	31.0	NaN	Q	7.7333	Conlon, Mr. Thomas Henry	0	1291	3	male	0	NaN	21332
+400	30.0	C7	S	164.8667	Bonnell, Miss. Caroline	0	1292	1	female	0	NaN	36928
+401	38.0	NaN	S	21.0000	Gale, Mr. Harry	0	1293	2	male	1	NaN	28664
+402	22.0	NaN	C	59.4000	Gibson, Miss. Dorothy Winifred	1	1294	1	female	0	NaN	112378
+403	17.0	NaN	S	47.1000	Carrau, Mr. Jose Pedro	0	1295	1	male	0	NaN	113059
+404	43.0	D40	C	27.7208	Frauenthal, Mr. Isaac Gerald	0	1296	1	male	1	NaN	17765
+405	20.0	D38	C	13.8625	Nourney, Mr. Alfred (Baron von Drachstedt")"	0	1297	2	male	0	NaN	SC/PARIS 2166
+406	23.0	NaN	S	10.5000	Ware, Mr. William Jeffery	0	1298	2	male	1	NaN	28666
+407	50.0	C80	C	211.5000	Widener, Mr. George Dunton	1	1299	1	male	1	NaN	113503
+408	NaN	NaN	Q	7.7208	Riordan, Miss. Johanna Hannah""	0	1300	3	female	0	NaN	334915
+409	3.0	NaN	S	13.7750	Peacock, Miss. Treasteall	1	1301	3	female	1	NaN	SOTON/O.Q. 3101315
+410	NaN	NaN	Q	7.7500	Naughton, Miss. Hannah	0	1302	3	female	0	NaN	365237
+411	37.0	C78	Q	90.0000	Minahan, Mrs. William Edward (Lillian E Thorpe)	0	1303	1	female	1	NaN	19928
+412	28.0	NaN	S	7.7750	Henriksson, Miss. Jenny Lovisa	0	1304	3	female	0	NaN	347086
+413	NaN	NaN	S	8.0500	Spector, Mr. Woolf	0	1305	3	male	0	NaN	A.5. 3236
+414	39.0	C105	C	108.9000	Oliva y Ocana, Dona. Fermina	0	1306	1	female	0	NaN	PC 17758
+415	38.5	NaN	S	7.2500	Saether, Mr. Simon Sivertsen	0	1307	3	male	0	NaN	SOTON/O.Q. 3101262
+416	NaN	NaN	S	8.0500	Ware, Mr. Frederick	0	1308	3	male	0	NaN	359309
+417	NaN	NaN	C	22.3583	Peter, Master. Michael J	1	1309	3	male	1	NaN	2668
+1309 rows × 12 columns
+
+data.reset_index(inplace=True, drop=True)
+資料分析
+# 分析生存以及死亡的比例 => 死亡6成、生存4成
+sns.countplot(data['Survived'])
+<matplotlib.axes._subplots.AxesSubplot at 0xc75e0b8>
+
+# 觀察艙等跟生存率的關係，可以發現在1艙等的生存率最高、再來是2艙等、最後是3艙等的
+sns.countplot(data['Pclass'], hue=data['Survived']) # hue:種類
+<matplotlib.axes._subplots.AxesSubplot at 0xcbbf5c0>
+
+# 性別跟生存率的關係，發現女生生存率是男生的好幾倍。或許是像在電影裡頭一樣，在逃難的時候先讓女生以及小孩先搭船
+sns.countplot(data['Sex'], hue=data['Survived'])
+<matplotlib.axes._subplots.AxesSubplot at 0xcc29080>
+
+# 出發港口跟生存率的差異，可以發現S港出發的都比較容易死亡，其原因可能是S城市出發的人買的票價都比較便宜
+sns.countplot(data['Embarked'], hue=data['Survived'])
+<matplotlib.axes._subplots.AxesSubplot at 0xcc85080>
+
+# 年齡跟生存率的關係，可以發現的確年齡小的存活比例高出許多
+# 生存與否情況下，age的生存數量分布情形 (二維)
+g = sns.FacetGrid(data, col='Survived')
+g.map(sns.distplot, 'Age', kde=False)
+<seaborn.axisgrid.FacetGrid at 0xcce9358>
+
+g = sns.FacetGrid(data, col='Survived') 
+g.map(sns.distplot, 'Fare', kde=False)
+<seaborn.axisgrid.FacetGrid at 0xce06eb8>
+
+g = sns.FacetGrid(data, col='Survived')
+g.map(sns.distplot, 'Parch', kde=False)
+<seaborn.axisgrid.FacetGrid at 0xcf82dd8>
+
+g = sns.FacetGrid(data, col='Survived')
+g.map(sns.distplot, 'SibSp', kde=False)
+<seaborn.axisgrid.FacetGrid at 0xd095128>
+
+data['Family_Size'] = data['Parch'] + data['SibSp']
+g = sns.FacetGrid(data, col='Survived')
+g.map(sns.distplot, 'Family_Size', kde=False)
+<seaborn.axisgrid.FacetGrid at 0xd180908>
+
+ 
+ 
+ 
+ 
+特徵工程
+ 
+ 
+ 
+ 
+ 
+ 
